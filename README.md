@@ -17,6 +17,38 @@ Built for the Cars24 Backend Engineering assignment, **Problem 2: AI Vehicle Sea
 
 ---
 
+## At a glance
+
+### What makes it stand out
+
+- **The AI only reads the query.** The LLM turns the query into a typed set of filters, and a parameterised SQL query does the actual search. A car over budget can never show up, the LLM never touches SQL, and every response includes the filters so you can see how the query was read.
+- **It works without an API key.** If there's no key, or the AI call fails or is rate-limited, a rule-based parser takes over and the search still succeeds.
+- **It doesn't return empty pages.** If nothing matches exactly, it drops the least important filters one at a time (safety rating, then km, then year) and says which ones it dropped. Budget, fuel, body type, brand and city are never dropped.
+- **It is measured at scale.** A benchmark script runs every example query against a 1,000,000-car catalogue (p95 94 ms uncached, about 6 ms cached).
+- **It is ready to deploy.** It ships with a Dockerfile, health check, structured config, 15 tests and a search page you can try in the browser.
+
+### How it scales
+
+| Layer | What it does | Effect |
+|---|---|---|
+| Cache | Stores parsed queries, counts and result pages, in memory or in Redis shared across instances | A repeated search skips the LLM and the database |
+| Query planning | For broad searches, reads rows straight from an index that is already in the requested sort order and stops after one page | A search that used to sort 508k rows to return 20 now reads about 20 |
+| Counting | Stops counting at 10,000 and reports "10,000+" | Removes the most expensive part of broad searches |
+| Paging | A cursor continues from the end of the previous page instead of skipping rows with OFFSET | Page 500 costs about the same as page 1 |
+| Serving | Keeps no state between requests, runs several workers, uses read-only connections | Add instances behind a load balancer to handle more traffic |
+
+### Future scope
+
+- **Postgres or OpenSearch** in place of SQLite for multi-million-listing catalogues, facets (counts per brand or fuel) and fuzzy matching on model names. All SQL is in one file, so this swap only touches that file.
+- **Lower LLM cost.** Send a query to the LLM only when the rule parser doesn't fully understand it, and add a semantic cache so paraphrased queries reuse the same result.
+- **Vague intent** ("sporty", "good for highways"). Re-rank cars within the filtered results using listing tags or embeddings, so budget and fuel limits still apply.
+- **Richer filters.** Search by model name ("XUV700") and exclude things explicitly ("not diesel").
+- **Quality tracking.** Score both parsers against a test set of real user queries every time the prompt or model changes.
+
+Details: [Scalability](#scalability) and [docs/DESIGN.md](docs/DESIGN.md).
+
+---
+
 ## Contents
 
 - [Two ways to parse a query: AI or rules](#two-ways-to-parse-a-query-ai-or-rules)
