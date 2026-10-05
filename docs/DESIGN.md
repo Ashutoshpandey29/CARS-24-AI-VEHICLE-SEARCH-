@@ -72,6 +72,7 @@ The catalogue version is the DB file's modification time, so reseeding invalidat
 ## Next steps
 
 1. **Real evaluation data.** The test set (`training/eval_queries.jsonl`, scored by `make eval`) is hand-written. Replace and extend it with real queries, labelled by the LLM and checked by a person, and add the same queries to the model's training data.
-2. **Vague intent** ("sporty", "good on highways"). Give each listing tags or an embedding and re-rank *inside* the hard-filtered set, so budget and fuel still hold.
-3. **Model names.** Add a `models` filter ("XUV700", "Creta"). Right now only the make is understood.
-4. **Exclusions.** Explicit `exclude_fuel_types` and similar fields, so "not diesel" does not depend on the LLM listing every other fuel.
+2. **Hybrid search (RAG).** Full-text search plus embeddings, ranked *inside* the hard-filtered set, so vague intent ("sporty", "good on highways"), model names and typos work while budget and fuel still hold. Optionally the LLM summarises the top matches. Full design in the README, "Alternative approaches".
+3. **Fine-tuned heavier model.** A transformer tagger (MuRIL or IndicBERT for Hinglish) or a LoRA-tuned small open LLM, trained on real queries labelled by the Claude parser (distillation). It plugs in as another parser and is scored with `training/evaluate.py`.
+4. **Model names.** Add a `models` filter ("XUV700", "Creta"). Right now only the make is understood.
+5. **Exclusions.** Explicit `exclude_fuel_types` and similar fields, so "not diesel" does not depend on the LLM listing every other fuel.
