@@ -8,9 +8,9 @@ Search a used-car catalogue in plain English. Built for the Cars24 Backend Engin
 
 ## Video walkthrough
 
-[![Video walkthrough: click to play](docs/images/video-thumbnail.png)](docs/media/walkthrough.mp4)
+[![Video walkthrough: click to play](docs/images/video-thumbnail.png)](docs/media/walkthrough.webm)
 
-*3-minute demo covering live search, how the parsers work and scalability. Click the image to play.*
+*3-minute demo covering live search, how the parsers work and scalability. Click the image to play, or download the [WebM](docs/media/walkthrough.webm) (plays in Chrome, Firefox and Linux players) or the [MP4](docs/media/walkthrough.mp4) (macOS and Windows players).*
 
 **Stack:** Python, FastAPI, SQLite, Claude API (optional), our own trained CRF model, Redis (optional).
 
