@@ -6,7 +6,9 @@
 query ─► normalise ─► parse cache ─┬─ hit ───────────────────────────────┐
                                    └─ miss ─► Claude (structured output) ─┤
                                               │ no key / error / refusal  │
-                                              └─► regex parser ───────────┤
+                                              └─► trained CRF tagger ─────┤
+                                                  │ no model file         │
+                                                  └─► regex parser ───────┤
                                                                           ▼
                                                      Filters (Pydantic, enums)
                                                                           │
@@ -30,8 +32,9 @@ The LLM never writes SQL and never ranks cars. Its only job is to turn free text
 | Claude structured outputs (`messages.parse` with the Pydantic model) | The response always matches the schema, so there is no JSON repair code. Enums keep values in line with the DB columns. | About one extra second per new query. The cache hides this for repeat queries. |
 | `effort: low` | Short extraction task. More reasoning adds latency without improving the filters. | |
 | Server-side `fallbacks: "default"` | If a safety classifier declines a request, the API retries it on another model instead of returning a refusal. | Beta header |
-| Regex fallback parser | The service keeps working with no key, during an LLM outage or rate limit, and in CI. Tests are deterministic. | Only understands phrasings it was written for. See the comparison in the README. |
-| Same conventions in the prompt and the regex | "family car", "safe" and "15L" mean the same thing whichever parser runs. | Two places to update |
+| Own trained model (CRF tagger) as the second parser | Works offline in about 0.4 ms at no cost per query, and handles context the regex can't (negation, "1.2 lakh km", number words). On the hand-written test set: 96% of queries fully right, against 61% for the rules. | Only as good as its training data. It is trained on generated queries for now, and real labelled queries would make it better (see the README). |
+| Regex parser as the last fallback | No dependencies at all. If the model file is missing or fails to load, search still works. | Only understands phrasings it was written for |
+| Same conventions in the prompt, the training data and the regex | "family car", "safe" and "15L" mean the same thing whichever parser runs. | Three places to update. The shared test set in `training/eval_queries.jsonl` catches drift. |
 | SQLite, read-only, one connection per thread | No setup, and indexed filtering stays in milliseconds up to millions of rows. | Single node. See "Going further" in the README. |
 | One denormalised `cars` table | Every query is a filtered read. Normalising would only add joins. | |
 | Soft-filter relaxation (`min_safety`, then `max_km`, then `min_year`) | An empty page is the worst search result. Budget, fuel, body type, make and city are hard constraints and are never dropped. | The response lists what was dropped in `relaxed`. |
@@ -48,7 +51,7 @@ The LLM never writes SQL and never ranks cars. Its only job is to turn free text
 
 | Key | Value | TTL |
 |---|---|---|
-| `parse:v1:<normalised query>` | filters + parser used | 24 h for AI parses, 5 min for rule fallbacks |
+| `parse:v2:<first-choice parser>:<normalised query>` | filters + parser used | 24 h if the first-choice parser answered, 5 min if a fallback did |
 | `count:v1:<catalogue version>:<filters>` | (count, exact) | 60 s |
 | `page:v1:<catalogue version>:<filters>:<limit>:<offset>:<cursor>` | rows | 60 s |
 
@@ -58,16 +61,17 @@ The catalogue version is the DB file's modification time, so reseeding invalidat
 
 | Failure | Behaviour |
 |---|---|
-| LLM network, auth or rate-limit error | Logged, the rule parser takes over, the request succeeds |
-| LLM refusal or unparseable output | Rule parser |
-| Slow LLM | 20 s timeout (`LLM_TIMEOUT`), 1 retry, then rule parser |
+| LLM network, auth or rate-limit error | Logged, the trained model takes over, the request succeeds |
+| LLM refusal or unparseable output | Trained model |
+| Slow LLM | 20 s timeout (`LLM_TIMEOUT`), 1 retry, then the trained model |
+| Model file missing or unreadable | Warning at startup, the rule parser is used |
 | Redis down | Logged, search runs uncached |
 | Database missing | Startup warning, `/health` returns `503` |
 | Bad input | `422` for validation errors, `400` for a bad cursor |
 
 ## Next steps
 
-1. **Evaluation set.** A list of real queries and their expected filters, scored for both parsers on every prompt or model change.
+1. **Real evaluation data.** The test set (`training/eval_queries.jsonl`, scored by `make eval`) is hand-written. Replace and extend it with real queries, labelled by the LLM and checked by a person, and add the same queries to the model's training data.
 2. **Vague intent** ("sporty", "good on highways"). Give each listing tags or an embedding and re-rank *inside* the hard-filtered set, so budget and fuel still hold.
 3. **Model names.** Add a `models` filter ("XUV700", "Creta"). Right now only the make is understood.
 4. **Exclusions.** Explicit `exclude_fuel_types` and similar fields, so "not diesel" does not depend on the LLM listing every other fuel.

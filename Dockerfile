@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY scripts ./scripts
+COPY models ./models
 ARG SEED_COUNT=600
 RUN python scripts/seed.py ${SEED_COUNT} --db ${DB_PATH}
 

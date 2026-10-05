@@ -2,8 +2,10 @@ import os
 
 import pytest
 
-# tests run against the rule parser so they are deterministic and need no network
+# no LLM in tests: they must be deterministic and run without network access.
+# The API uses the trained model, with rules as the fallback.
 os.environ.pop("ANTHROPIC_API_KEY", None)
+os.environ.pop("PARSER", None)
 os.environ.pop("REDIS_URL", None)
 
 

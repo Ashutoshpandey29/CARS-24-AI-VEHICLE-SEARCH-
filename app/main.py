@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 
 from app.api.routes import router
 from app.config import get_settings
+from app.parser import chain
 
 STATIC = Path(__file__).parent / "static"
 
@@ -19,8 +20,7 @@ log = logging.getLogger("app")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     s = get_settings()
-    log.info("db=%s parser=%s cache=%s", s.db_path, "llm" if s.llm_enabled else "rules",
-             "redis" if s.redis_url else "memory")
+    log.info("db=%s parsers=%s cache=%s", s.db_path, " > ".join(chain()), "redis" if s.redis_url else "memory")
     if not Path(s.db_path).exists():
         log.warning("%s not found, run `python scripts/seed.py` first", s.db_path)
     yield

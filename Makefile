@@ -1,7 +1,7 @@
 PY ?= .venv/bin/python
 PORT ?= 8000
 
-.PHONY: install seed run test bench docker
+.PHONY: install seed run test bench train eval docker
 
 install:
 	python3 -m venv .venv
@@ -15,6 +15,12 @@ run:
 
 test:
 	$(PY) -m pytest -q
+
+train:
+	$(PY) scripts/train_model.py
+
+eval:
+	$(PY) -m training.evaluate --show-errors
 
 bench:
 	$(PY) scripts/benchmark.py --count $(or $(N),1000000)

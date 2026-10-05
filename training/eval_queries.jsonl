@@ -1,0 +1,46 @@
+{"q": "Show SUVs under ₹15L", "expected": {"body_types": ["SUV"], "max_price": 1500000}}
+{"q": "Diesel automatic cars below 80k km", "expected": {"fuel_types": ["Diesel"], "transmission": "Automatic", "max_km": 80000}}
+{"q": "Family cars with high safety ratings", "expected": {"body_types": ["SUV", "MUV", "Sedan"], "min_seats": 5, "min_safety": 4}}
+{"q": "Hyundai between 5 and 9 lakh after 2019 in Pune, cheapest", "expected": {"makes": ["Hyundai"], "min_price": 500000, "max_price": 900000, "min_year": 2019, "city": "Pune", "sort": "price_asc"}}
+{"q": "7 seater diesel under 20L", "expected": {"min_seats": 7, "fuel_types": ["Diesel"], "max_price": 2000000}}
+{"q": "an SUV that is not older than 3 years, not diesel", "expected": {"body_types": ["SUV"], "min_year_ago": 3, "fuel_types": ["Petrol", "CNG", "Electric", "Hybrid"]}}
+{"q": "Maruti or Toyota automatic, max 1.2 lakh km", "expected": {"makes": ["Maruti Suzuki", "Toyota"], "transmission": "Automatic", "max_km": 120000}}
+{"q": "something for a family of 7 that runs on diesel, budget twelve lakh", "expected": {"body_types": ["SUV", "MUV", "Sedan"], "min_seats": 7, "fuel_types": ["Diesel"], "max_price": 1200000}}
+{"q": "a car my wife can drive easily, no gears please", "expected": {"transmission": "Automatic"}}
+{"q": "petrol hatchback under 5 lakh in delhi", "expected": {"fuel_types": ["Petrol"], "body_types": ["Hatchback"], "max_price": 500000, "city": "Delhi"}}
+{"q": "automatic sedan newest", "expected": {"transmission": "Automatic", "body_types": ["Sedan"], "sort": "year_desc"}}
+{"q": "cng car below 6 lakhs", "expected": {"fuel_types": ["CNG"], "max_price": 600000}}
+{"q": "Tata Nexon EV", "expected": {"makes": ["Tata"], "fuel_types": ["Electric"]}}
+{"q": "honda city automatic in mumbai", "expected": {"makes": ["Honda"], "transmission": "Automatic", "city": "Mumbai"}}
+{"q": "used Creta in Bengaluru under 12 lakh", "expected": {"city": "Bangalore", "max_price": 1200000}}
+{"q": "5 star rated SUV for family", "expected": {"body_types": ["SUV"], "min_safety": 5, "min_seats": 5}}
+{"q": "cheapest 7 seater in hyderabad", "expected": {"min_seats": 7, "city": "Hyderabad", "sort": "price_asc"}}
+{"q": "Kia or Hyundai SUV less than 50,000 km driven", "expected": {"makes": ["Kia", "Hyundai"], "body_types": ["SUV"], "max_km": 50000}}
+{"q": "manual petrol hatch below 3 lakh", "expected": {"transmission": "Manual", "fuel_types": ["Petrol"], "body_types": ["Hatchback"], "max_price": 300000}}
+{"q": "electric car above 10 lakh", "expected": {"fuel_types": ["Electric"], "min_price": 1000000}}
+{"q": "mpv for 8 people", "expected": {"body_types": ["MUV"], "min_seats": 8}}
+{"q": "registered after 2020 diesel suv gurugram", "expected": {"min_year": 2020, "fuel_types": ["Diesel"], "body_types": ["SUV"], "city": "Gurgaon"}}
+{"q": "safest sedan under 10 lakhs", "expected": {"body_types": ["Sedan"], "max_price": 1000000, "sort": "safety_desc"}}
+{"q": "low mileage hyundai in chennai", "expected": {"makes": ["Hyundai"], "city": "Chennai", "sort": "km_asc"}}
+{"q": "toyota innova crysta", "expected": {"makes": ["Toyota"]}}
+{"q": "skoda or volkswagen sedan 2021 onwards", "expected": {"makes": ["Skoda", "Volkswagen"], "body_types": ["Sedan"], "min_year": 2021}}
+{"q": "need a car under 4 lakh with less than 60000 km", "expected": {"max_price": 400000, "max_km": 60000}}
+{"q": "hybrid suv between 15 and 25 lakh", "expected": {"fuel_types": ["Hybrid"], "body_types": ["SUV"], "min_price": 1500000, "max_price": 2500000}}
+{"q": "MG electric SUV, not more than 2 years old", "expected": {"makes": ["MG"], "fuel_types": ["Electric"], "body_types": ["SUV"], "min_year_ago": 2}}
+{"q": "any car except petrol in noida", "expected": {"fuel_types": ["Diesel", "CNG", "Electric", "Hybrid"], "city": "Noida"}}
+{"q": "automatic car for a family of five under 8 lakh", "expected": {"transmission": "Automatic", "body_types": ["SUV", "MUV", "Sedan"], "min_seats": 5, "max_price": 800000}}
+{"q": "show me renault kwid below 3.5 lakh", "expected": {"makes": ["Renault"], "max_price": 350000}}
+{"q": "diesel manual mahindra above 10 lakh", "expected": {"fuel_types": ["Diesel"], "transmission": "Manual", "makes": ["Mahindra"], "min_price": 1000000}}
+{"q": "suv with automatic transmission and 5 star safety in jaipur", "expected": {"body_types": ["SUV"], "transmission": "Automatic", "min_safety": 5, "city": "Jaipur"}}
+{"q": "sedan around 7 lakh", "expected": {"body_types": ["Sedan"], "max_price": 700000}}
+{"q": "swift dzire in kolkata under 6l", "expected": {"city": "Kolkata", "max_price": 600000}}
+{"q": "latest maruti cng", "expected": {"makes": ["Maruti Suzuki"], "fuel_types": ["CNG"], "sort": "year_desc"}}
+{"q": "SUV under 1 crore", "expected": {"body_types": ["SUV"], "max_price": 10000000}}
+{"q": "petrol automatic not older than five years", "expected": {"fuel_types": ["Petrol"], "transmission": "Automatic", "min_year_ago": 5}}
+{"q": "7-seater under twenty lakh with good safety", "expected": {"min_seats": 7, "max_price": 2000000, "min_safety": 4}}
+{"q": "hatchback less than 30k km in ahmedabad", "expected": {"body_types": ["Hatchback"], "max_km": 30000, "city": "Ahmedabad"}}
+{"q": "Diesel SUV 10-15 lakh", "expected": {"fuel_types": ["Diesel"], "body_types": ["SUV"], "min_price": 1000000, "max_price": 1500000}}
+{"q": "cars from 2018 or later under 7 lakh, least driven first", "expected": {"min_year": 2018, "max_price": 700000, "sort": "km_asc"}}
+{"q": "non diesel automatic suv for 7", "expected": {"fuel_types": ["Petrol", "CNG", "Electric", "Hybrid"], "transmission": "Automatic", "body_types": ["SUV"], "min_seats": 7}}
+{"q": "bombay second hand i20 with less than 40000 kms", "expected": {"city": "Mumbai", "max_km": 40000}}
+{"q": "vw or skoda, budget 12-18 lakh, automatic only", "expected": {"makes": ["Volkswagen", "Skoda"], "min_price": 1200000, "max_price": 1800000, "transmission": "Automatic"}}

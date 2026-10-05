@@ -43,7 +43,7 @@ class Car(BaseModel):
 
 class SearchResponse(BaseModel):
     query: str
-    parser: str = Field(description="'llm' or 'rules': which parser produced the filters")
+    parser: str = Field(description="'llm', 'model' or 'rules': which parser produced the filters")
     filters: dict = Field(description="How the query was understood")
     relaxed: List[str] = Field(description="Soft filters dropped because the strict search found nothing")
     total: int

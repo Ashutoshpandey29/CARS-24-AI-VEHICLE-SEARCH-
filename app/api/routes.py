@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 
-from app.config import get_settings
 from app.db import ping
+from app.parser import chain
 from app.schemas import Car, SearchResponse
 from app.search import service
 from app.search.query import InvalidCursor
@@ -14,7 +14,8 @@ def health():
     ok = ping()
     if not ok:
         raise HTTPException(503, "database unavailable")
-    return {"status": "ok", "parser": "llm" if get_settings().llm_enabled else "rules"}
+    parsers = chain()
+    return {"status": "ok", "parser": parsers[0], "fallbacks": parsers[1:]}
 
 
 @router.get("/search", response_model=SearchResponse)

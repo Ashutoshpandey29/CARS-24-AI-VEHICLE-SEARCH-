@@ -33,6 +33,7 @@
   .badge { padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
   .badge.llm { background: var(--ok-soft); color: var(--ok); }
   .badge.rules { background: var(--warn-soft); color: var(--warn); }
+  .badge.model { background: var(--brand-soft); color: var(--brand); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
   .chip { background: var(--brand-soft); color: var(--brand); padding: 4px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; }
   .notice { background: var(--warn-soft); color: var(--warn); padding: 8px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 8px; }
@@ -124,7 +125,7 @@ async function run(q, cursor) {
     $("out").innerHTML = `
       <div class="meta">
         <strong>${data.total.toLocaleString("en-IN")}${data.total_exact ? "" : "+"} cars</strong> · ${data.took_ms} ms ·
-        <span class="badge ${data.parser}">${data.parser === "llm" ? "AI parser" : "Rule parser"}</span>
+        <span class="badge ${data.parser}">${{ llm: "AI parser", model: "Trained model", rules: "Rule parser" }[data.parser]}</span>
       </div>
       <div class="chips">${chips || '<span class="chip">No filters understood</span>'}</div>
       ${data.relaxed.length ? `<div class="notice">No exact match, so these filters were relaxed: ${data.relaxed.join(", ")}</div>` : ""}

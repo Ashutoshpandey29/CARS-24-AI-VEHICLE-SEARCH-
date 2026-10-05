@@ -14,6 +14,8 @@ class Settings:
     anthropic_api_key: str | None
     llm_model: str
     llm_timeout: float
+    parser: str
+    model_path: str | None
     redis_url: str | None
     cache_size: int
     parse_cache_ttl: int
@@ -33,6 +35,8 @@ def get_settings() -> Settings:
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY") or None,
         llm_model=os.getenv("LLM_MODEL", "claude-opus-5-5"),
         llm_timeout=float(os.getenv("LLM_TIMEOUT", "20")),
+        parser=os.getenv("PARSER", "auto").lower(),
+        model_path=os.getenv("MODEL_PATH") or None,
         redis_url=os.getenv("REDIS_URL") or None,
         cache_size=_env_int("CACHE_SIZE", 10_000),
         parse_cache_ttl=_env_int("PARSE_CACHE_TTL", 24 * 3600),

@@ -13,7 +13,7 @@ Built for the Cars24 Backend Engineering assignment, **Problem 2: AI Vehicle Sea
 
 ![Search page](docs/images/ui-search.png)
 
-**Stack:** Python 3.10+, FastAPI, SQLite, Anthropic Claude API (optional), optional Redis.
+**Stack:** Python 3.10+, FastAPI, SQLite, a CRF model we trained ourselves (python-crfsuite), Anthropic Claude API (optional), optional Redis.
 
 ---
 
@@ -22,10 +22,11 @@ Built for the Cars24 Backend Engineering assignment, **Problem 2: AI Vehicle Sea
 ### What makes it stand out
 
 - **The AI only reads the query.** The LLM turns the query into a typed set of filters, and a parameterised SQL query does the actual search. A car over budget can never show up, the LLM never touches SQL, and every response includes the filters so you can see how the query was read.
-- **It works without an API key.** If there's no key, or the AI call fails or is rate-limited, a rule-based parser takes over and the search still succeeds.
+- **It has its own trained model.** Besides the LLM, the project includes a query-understanding model we trained ourselves. It runs locally in under a millisecond, costs nothing per query, and needs no network. On a set of hand-written test queries it gets **96%** of queries fully right, against **61%** for the rule parser.
+- **It works without an API key.** The parsers are tried in order: the LLM, then the trained model, then the rules. If one is unavailable or fails, the next one takes over and the search still succeeds.
 - **It doesn't return empty pages.** If nothing matches exactly, it drops the least important filters one at a time (safety rating, then km, then year) and says which ones it dropped. Budget, fuel, body type, brand and city are never dropped.
 - **It is measured at scale.** A benchmark script runs every example query against a 1,000,000-car catalogue (p95 94 ms uncached, about 6 ms cached).
-- **It is ready to deploy.** It ships with a Dockerfile, health check, structured config, 15 tests and a search page you can try in the browser.
+- **It is ready to deploy.** It ships with a Dockerfile, health check, structured config, 21 tests and a search page you can try in the browser.
 
 ### How it scales
 
@@ -40,10 +41,11 @@ Built for the Cars24 Backend Engineering assignment, **Problem 2: AI Vehicle Sea
 ### Future scope
 
 - **Postgres or OpenSearch** in place of SQLite for multi-million-listing catalogues, facets (counts per brand or fuel) and fuzzy matching on model names. All SQL is in one file, so this swap only touches that file.
-- **Lower LLM cost.** Send a query to the LLM only when the rule parser doesn't fully understand it, and add a semantic cache so paraphrased queries reuse the same result.
+- **Lower LLM cost through distillation.** Label real search logs with the LLM, retrain our own model on them, and send a query to the LLM only when the trained model is unsure. A semantic cache would let paraphrased queries reuse the same result.
+- **A bigger trained model.** Fine-tune a small transformer (for example DistilBERT for tagging, or T5 to output the filters directly) once there are enough labelled real queries. See [Trained model](#our-own-trained-model).
 - **Vague intent** ("sporty", "good for highways"). Re-rank cars within the filtered results using listing tags or embeddings, so budget and fuel limits still apply.
-- **Richer filters.** Search by model name ("XUV700") and exclude things explicitly ("not diesel").
-- **Quality tracking.** Score both parsers against a test set of real user queries every time the prompt or model changes.
+- **Richer filters.** Search by model name ("XUV700") and explicit exclusions for more than fuel.
+- **Quality tracking.** Grow the hand-written test set from real queries, and score all three parsers on it every time the prompt, the model or the rules change (`make eval` already does this).
 
 Details: [Scalability](#scalability) and [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -51,7 +53,8 @@ Details: [Scalability](#scalability) and [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Contents
 
-- [Two ways to parse a query: AI or rules](#two-ways-to-parse-a-query-ai-or-rules)
+- [Three ways to parse a query](#three-ways-to-parse-a-query)
+- [Our own trained model](#our-own-trained-model)
 - [How to run](#how-to-run)
 - [How to search](#how-to-search)
 - [API](#api)
@@ -63,29 +66,87 @@ Details: [Scalability](#scalability) and [docs/DESIGN.md](docs/DESIGN.md).
 
 ---
 
-## Two ways to parse a query: AI or rules
+## Three ways to parse a query
 
-The hard part of this problem is understanding the query. The service has two parsers and picks one automatically.
+The hard part of this problem is understanding the query. The service has three parsers. They are tried in this order, and the first one available handles the query:
 
-| | **AI parser (recommended)** | **Rule parser (fallback)** |
+| | **1. AI parser (LLM)** | **2. Trained model (ours)** | **3. Rule parser** |
+|---|---|---|---|
+| Needs | `ANTHROPIC_API_KEY` | The model file (included in the repo) | Nothing |
+| How it works | Claude reads the query and returns filters that are validated against a fixed schema | A CRF sequence tagger we trained labels each word with the filter it belongs to | Regular expressions for common phrasings |
+| Speed and cost | About 1 s and a small API cost per new query (cached afterwards) | About 0.4 ms, free, works offline | About 0.1 ms, free |
+| Best at | Anything: unusual phrasing, vague requests, typos | Everyday queries, including negation, number words, "family of 7", "1.2 lakh km" and city nicknames | Standard formats such as "under 15L", "80k km", "7 seater" |
+| Used when | A key is set | No key, or the LLM call failed | Last-resort fallback |
+
+> **For the best results, set an API key.** Without a key the trained model handles queries, and it does a lot better than the rules (see below). The response field `parser` (`llm`, `model` or `rules`) and the badge in the UI show which parser handled each query. Set `PARSER=model` to skip the LLM, or `PARSER=rules` to use only the rules.
+
+These are real outputs for queries the rule parser gets wrong:
+
+| Query | Rule parser | Trained model | What the query means |
+|---|---|---|---|
+| an SUV that is not older than 3 years, not diesel | SUV, **Diesel** | SUV, year ≥ 2023, Petrol/CNG/Electric/Hybrid | SUV, year ≥ 2023, any fuel except diesel |
+| Maruti or Toyota automatic, max 1.2 lakh km | Maruti/Toyota, automatic, **max price ₹1.2L** | Maruti/Toyota, automatic, max 120,000 km | Maruti/Toyota, automatic, max 120,000 km |
+| something for a family of 7 that runs on diesel, budget twelve lakh | Diesel, **5+ seats**, sorted by price, no budget | Diesel, 7+ seats, family body types, max ₹12L | Diesel, 7+ seats, max ₹12L |
+| a car my wife can drive easily, no gears please | *(nothing)* | Automatic, **plus 5+ seats** (it took "wife" to mean a family car) | Automatic |
+
+The trained model reading the first query:
+
+![Trained model handling a negation](docs/images/ui-model.png)
+
+The AI parser is given the same conventions (1L = ₹1,00,000, "family car" = 5+ seats, "safe" = 4+ NCAP stars and so on). Because it reads the whole sentence rather than matching keywords or patterns it has seen, it is the most flexible of the three. Whichever parser runs, it only produces filters. None of them writes SQL or decides what is in the results (see [docs/DESIGN.md](docs/DESIGN.md)).
+
+---
+
+## Our own trained model
+
+### What it is
+
+A **CRF (conditional random field) sequence tagger**. This is a classic model for this kind of query-understanding task, and voice assistants used it for slot filling before LLMs. It reads the query word by word and labels each word with the filter it fills:
+
+```
+not   diesel      under  12           lakh         1.2       lakh       km
+O     B-FUEL_NOT  O      B-PRICE_MAX  I-PRICE_MAX  B-KM_MAX  I-KM_MAX   O
+```
+
+Each word is labelled from its context: the word itself, its shape (year, decimal, number word), whether it is a known brand, city or unit, and the three words on each side. So the model learns that "1.2 lakh" followed by "km" is a distance and "diesel" after "not" is an exclusion. A small, readable function then turns the labelled spans into filters (number words, lakh/crore/k units, aliases such as Bengaluru, Gurugram and Bombay).
+
+It recognises 19 slot types: body, fuel, excluded fuel, gearbox, make, city, min/max price, max km, min year, max age, seats, safety, family, and five sort orders.
+
+### How it was trained
+
+1. **Data.** `training/generate.py` builds labelled queries from slot phrases ("under 15 lakh", "for a family of 7", "not diesel", "1.2 lakh km"), mixed in random order with filler words ("show me", "please", "for daily commute"). 8,000 queries are used for training.
+2. **Training.** `scripts/train_model.py` trains the CRF (L1 and L2 regularisation, 200 iterations) on a laptop CPU in about 1.5 minutes. The model file is 84 KB and is committed in `models/`, so nobody has to train it before running the app.
+3. **Evaluation.** `training/eval_queries.jsonl` holds 46 hand-written queries with their expected filters. They are written separately from the templates and are never used for training. Every parser is scored on them.
+
+```bash
+python scripts/train_model.py                 # retrain (make train)
+python -m training.evaluate --show-errors     # compare parsers, list mistakes (make eval)
+```
+
+![Training output](docs/images/terminal-train.png)
+
+| Parser | Queries fully right | Precision | Recall | F1 |
+|---|---|---|---|---|
+| Rules | 61% | 93% | 79% | 86% |
+| **Trained model** | **96%** | **97%** | **100%** | **98%** |
+
+*Precision, recall and F1 are measured over individual filters. "Fully right" means every filter for the query is correct.*
+
+The two queries it still gets wrong are listed above and by `--show-errors`: "my wife" gets read as a family car, and "i20" (a car model) gets read as a ₹20L budget.
+
+**To be clear about the numbers:** the test queries and the training templates were written by the same person, so this test set is friendlier than real traffic will be. Treat the scores as a comparison between parsers, not as production accuracy. The way to get a trustworthy number is to collect real queries, label them (the LLM parser can do the first pass), and add them to both the test set and the training data. The training script and the test file already use that format.
+
+### Why a CRF and not a neural network
+
+| | CRF (this repo) | Fine-tuned transformer (DistilBERT, T5) |
 |---|---|---|
-| Needs | `ANTHROPIC_API_KEY` | Nothing |
-| How it works | Claude reads the query and returns filters that are validated against a fixed schema | Regular expressions for common phrasings |
-| Handles | Free-form language, negation ("not diesel"), number words ("twelve lakh"), context ("family of 7"), synonyms ("no gears" = automatic) | Keywords and standard formats such as "under 15L", "80k km", "7 seater", "after 2019" |
-| Used when | A key is set | No key is set, or the AI call fails or times out |
+| Training | 1.5 min on CPU | Needs a GPU, or hours on CPU |
+| Size | 84 KB | 250 MB or more |
+| Inference | 0.4 ms on CPU | 10 to 50 ms on CPU |
+| Dependencies | `python-crfsuite` | PyTorch, transformers |
+| Unseen phrasing | Weaker | Stronger |
 
-> **For the best results, set an API key.** Without a key everything still works, but the rule parser only understands the phrasings it was written for. The response field `parser` (and the badge in the UI) shows which parser handled each query.
-
-These are real outputs from the rule parser, for queries it gets wrong or only partly right:
-
-| Query | Rule parser output | What the query actually means |
-|---|---|---|
-| an SUV that is not older than 3 years, not diesel | SUV, **Diesel** | SUV, year ≥ 2023, any fuel except diesel |
-| Maruti or Toyota automatic, max 1.2 lakh km | Maruti/Toyota, automatic, **max price ₹1.2L** | Maruti/Toyota, automatic, max **120,000 km** |
-| something for a family of 7 that runs on diesel, budget twelve lakh | Diesel, **5+ seats**, sorted by price, no budget | Diesel, 7+ seats, max price ₹12L |
-| a car my wife can drive easily, no gears please | *(nothing)* | Automatic |
-
-The AI parser is given the same conventions (1L = ₹1,00,000, "family car" = 5+ seats, "safe" = 4+ NCAP stars and so on) and because it reads the whole sentence rather than matching keywords, it can handle queries like these. Either way the LLM only produces filters. It never writes SQL and never decides what is in the results (see [docs/DESIGN.md](docs/DESIGN.md)).
+For a search box that has to answer in milliseconds, the CRF is the better trade today. Once there are a few thousand labelled real queries, fine-tuning a small transformer on the same data is the natural next step. The data format, evaluation script and parser interface would stay the same.
 
 ---
 
@@ -116,7 +177,7 @@ cp .env.example .env
 # open .env and set ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Skip this step to run with the rule parser only.
+If you skip this step, the trained model handles queries, with the rules as backup. The trained model is already in the repo, so there is nothing to train first. To retrain it, run `python scripts/train_model.py`.
 
 ### 4. Start the server
 
@@ -138,7 +199,7 @@ Seeding, tests and server start in one terminal:
 
 ![Setup in the terminal](docs/images/terminal-setup.png)
 
-The `Makefile` has shortcuts for the same steps: `make install`, `make seed`, `make run`, `make test`, `make bench`, `make docker`.
+The `Makefile` has shortcuts for the same steps: `make install`, `make seed`, `make run`, `make test`, `make train`, `make eval`, `make bench`, `make docker`.
 
 ---
 
@@ -149,7 +210,7 @@ The `Makefile` has shortcuts for the same steps: `make install`, `make seed`, `m
 Open http://localhost:8000, type a query or click an example. The page shows:
 
 - how many cars matched and how long the search took
-- which parser handled the query (**AI parser** or **Rule parser**)
+- which parser handled the query (**AI parser**, **Trained model** or **Rule parser**)
 - the filters it understood, as chips under the result count
 - the cars, with **Show more** at the bottom for the next page
 
@@ -202,7 +263,7 @@ Response fields:
 
 | Field | Meaning |
 |---|---|
-| `parser` | `llm` or `rules` |
+| `parser` | `llm`, `model` or `rules` |
 | `filters` | The structured version of the query. Useful for checking why a car did or did not show up. |
 | `relaxed` | Filters dropped because the strict search found nothing |
 | `total`, `total_exact` | Number of matches. Counting stops at 10,000 (`COUNT_CAP`); past that `total_exact` is `false` and the UI shows "10,000+". |
@@ -216,7 +277,7 @@ One car. `404` if the id does not exist.
 
 ### `GET /health`
 
-`{"status": "ok", "parser": "llm" | "rules"}`, or `503` if the database is unreachable.
+`{"status": "ok", "parser": "model", "fallbacks": ["rules"]}`: the parser that handles queries first, then its fallbacks in order. Returns `503` if the database is unreachable.
 
 Bad input (query too short or too long, limit over 100, malformed cursor) returns `422` or `400` with a message.
 
@@ -228,7 +289,7 @@ The original version opened a new database connection per request, counted every
 
 | Change | Why it matters |
 |---|---|
-| **Two-level cache** (parsed query, then count and page) | Popular searches repeat a lot. A repeated query skips the LLM call and the database entirely. AI parses are kept for a day. Rule-based fallbacks are kept for 5 minutes, so queries that fell back during an LLM outage get retried with the LLM soon. |
+| **Two-level cache** (parsed query, then count and page) | Popular searches repeat a lot. A repeated query skips the LLM call and the database entirely. Parses from the first-choice parser are kept for a day. Results from a fallback are kept for 5 minutes, so queries that fell back during an LLM outage get retried with the LLM soon. |
 | **Redis support** (`REDIS_URL`) | The default cache lives in each process. With several workers or servers, Redis gives them one shared cache, so a query parsed once is parsed for everyone. If Redis is down, searches still work without the cache. |
 | **Cache invalidation on reseed** | Cache keys include the catalogue file's modification time, so loading new data never serves stale results. |
 | **Index walk for broad queries** | When a query matches 1% or more of the catalogue, rows are read straight from an index that is already in the requested sort order, and reading stops after one page. Before this, "SUVs under 15L" on 1M cars sorted 508k rows to return 20 (470 ms). Now it takes under 1 ms. |
@@ -252,7 +313,7 @@ Run it yourself with `make bench` or `python scripts/benchmark.py --count 100000
 | Cached search, p50 | 5 ms | 6 ms |
 | Page at result ~5,000 | 653 ms | **19 ms** (cursor) |
 
-Measured on a laptop through the full HTTP stack (FastAPI test client), with the rule parser. With the AI parser, the first time a query is seen adds roughly one LLM round trip. After that it comes from the cache.
+Measured on a laptop through the full HTTP stack (FastAPI test client), with the rule parser. The trained model adds about 0.4 ms per new query. With the AI parser, the first time a query is seen adds roughly one LLM round trip. After that it comes from the cache.
 
 ### Going further
 
@@ -260,7 +321,7 @@ When one machine is no longer enough, the code is set up so each step is a small
 
 1. **Postgres or Elasticsearch/OpenSearch** in place of SQLite. All SQL is in `app/search/query.py`, so only that file changes. OpenSearch also adds facets (counts per brand, per fuel) and fuzzy matching on model names.
 2. **Read replicas.** The API only reads, so it scales horizontally against replicas.
-3. **Rules first, LLM second.** Send a query to the LLM only when the rule parser leaves words it did not understand. This cuts LLM calls for simple queries.
+3. **Trained model first, LLM second.** The CRF reports how confident it is in its labels. Send a query to the LLM only when that confidence is low, which cuts LLM calls for everyday queries.
 4. **Semantic cache.** Store query embeddings so paraphrases ("SUV below 15 lakh" and "15L budget SUV") hit the same cache entry.
 
 More detail on the design and trade-offs is in [docs/DESIGN.md](docs/DESIGN.md).
@@ -279,17 +340,25 @@ app/
   vocab.py           Brands, cities, body/fuel types shared everywhere
   api/routes.py      /search, /cars/{id}, /health
   parser/
-    __init__.py      parse(): cache, then AI parser, then rule parser
+    __init__.py      parse(): cache, then LLM > trained model > rules
     llm.py           Claude structured-output parser
+    model.py         Our trained CRF tagger: features, decoding to filters
     rules.py         Regex parser
   search/
     query.py         Filters to parameterised SQL, sort orders, cursors
     service.py       Search flow: count, relax, fetch, cache
   static/index.html  Search page
+models/
+  query_tagger.crfsuite   Trained model (84 KB)
+training/
+  generate.py        Builds labelled training queries
+  eval_queries.jsonl 46 hand-written test queries, never used for training
+  evaluate.py        Scores parsers on the test queries
 scripts/
   seed.py            Catalogue generator
+  train_model.py     Trains and evaluates the model
   benchmark.py       Latency benchmark on a large catalogue
-tests/               Parser and API tests
+tests/               Parser, model and API tests
 docs/                Design notes and screenshots
 Dockerfile, Makefile, requirements.txt, requirements-dev.txt, .env.example
 ```
@@ -303,12 +372,14 @@ All settings are environment variables (see `.env.example`).
 | Variable | Default | Purpose |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | unset | Turns on the AI parser |
+| `PARSER` | `auto` | Where the parser chain starts: `auto`/`llm` (LLM > model > rules), `model` (model > rules) or `rules` |
+| `MODEL_PATH` | `models/query_tagger.crfsuite` | Trained model file |
 | `LLM_MODEL` | `claude-opus-5-5` | Model used for parsing |
-| `LLM_TIMEOUT` | `20` | Seconds before falling back to rules |
+| `LLM_TIMEOUT` | `20` | Seconds before falling back to the next parser |
 | `DB_PATH` | `data/cars.db` | SQLite file |
 | `REDIS_URL` | unset | Shared cache, e.g. `redis://localhost:6379/0` (needs `pip install redis`) |
 | `CACHE_SIZE` | `10000` | Entries in the in-memory cache |
-| `PARSE_CACHE_TTL` | `86400` | Seconds to keep AI parses |
+| `PARSE_CACHE_TTL` | `86400` | Seconds to keep parses from the first-choice parser (fallback results are kept for 5 minutes) |
 | `RESULT_CACHE_TTL` | `60` | Seconds to keep counts and pages |
 | `COUNT_CAP` | `10000` | Stop counting matches here. `0` means always count exactly. |
 | `LOG_LEVEL` | `INFO` | |
@@ -340,4 +411,10 @@ Or point the platform at the Dockerfile.
 pytest -q
 ```
 
-15 tests cover the rule parser, filtering, relaxation, cursor paging (cursor pages must match offset pages exactly), cursor validation, input validation, car lookup and the search page. Tests always run with the rule parser, so they are deterministic and need no network access or API key.
+21 tests cover:
+- the rule parser and the trained model, including a check that fails if a retrained model scores below 90% on the test queries or no better than the rules
+- filtering and relaxation
+- cursor paging (cursor pages must match offset pages exactly) and cursor validation
+- input validation, car lookup and the search page
+
+Tests never call the LLM, so they are deterministic and need no network access or API key.

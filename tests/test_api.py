@@ -1,10 +1,10 @@
 def test_health(client):
-    assert client.get("/health").json() == {"status": "ok", "parser": "rules"}
+    assert client.get("/health").json() == {"status": "ok", "parser": "model", "fallbacks": ["rules"]}
 
 
 def test_results_respect_filters(client):
     r = client.get("/search", params={"q": "Diesel automatic cars below 80k km"}).json()
-    assert r["parser"] == "rules" and r["total"] > 0
+    assert r["parser"] == "model" and r["total"] > 0
     assert all(c["fuel_type"] == "Diesel" and c["transmission"] == "Automatic" and c["km_driven"] <= 80_000
                for c in r["results"])
 
