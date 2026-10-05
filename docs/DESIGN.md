@@ -57,6 +57,12 @@ The LLM never writes SQL and never ranks cars. Its only job is to turn free text
 
 The catalogue version is the DB file's modification time, so reseeding invalidates every count and page at once. The parse cache is keyed on the query text, not the catalogue, so it survives reseeds. Redis is used when `REDIS_URL` is set. Any Redis error is logged and the search continues without the cache.
 
+## Benchmark
+
+`make bench` seeds 1,000,000 cars and times the example queries with the cache cold and warm.
+
+![Benchmark](images/terminal-benchmark.png)
+
 ## Failure handling
 
 | Failure | Behaviour |
