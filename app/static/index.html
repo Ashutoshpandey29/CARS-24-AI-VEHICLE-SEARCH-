@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cars24 Vehicle Search</title>
+<style>
+  :root {
+    --bg: #f5f7fb; --card: #fff; --text: #1b2236; --muted: #6b7489; --line: #e3e7ef;
+    --brand: #4736fe; --brand-soft: #eceaff; --ok: #0f8a5f; --ok-soft: #e3f6ee; --warn: #9a6200; --warn-soft: #fff4dd;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  .top { display: flex; align-items: center; gap: 10px; height: 60px; }
+  .logo { font-weight: 800; font-size: 20px; letter-spacing: -.3px; }
+  .logo span { color: var(--brand); }
+  .top small { color: var(--muted); }
+  .top a { margin-left: auto; color: var(--brand); text-decoration: none; font-weight: 600; font-size: 14px; }
+  .hero { padding: 28px 0 18px; }
+  h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -.4px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  form { display: flex; gap: 8px; }
+  input[type=search] { flex: 1; min-width: 0; padding: 14px 16px; font-size: 16px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); outline: none; }
+  input[type=search]:focus { border-color: var(--brand); }
+  button { padding: 0 22px; border: 0; border-radius: 12px; background: var(--brand); color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .examples button { background: var(--card); color: var(--text); border: 1px solid var(--line); padding: 6px 12px; font-weight: 500; font-size: 13px; border-radius: 999px; }
+  .examples button:hover { border-color: var(--brand); color: var(--brand); }
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 6px; font-size: 14px; color: var(--muted); }
+  .meta strong { color: var(--text); }
+  .badge { padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .badge.llm { background: var(--ok-soft); color: var(--ok); }
+  .badge.rules { background: var(--warn-soft); color: var(--warn); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .chip { background: var(--brand-soft); color: var(--brand); padding: 4px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+  .notice { background: var(--warn-soft); color: var(--warn); padding: 8px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; margin: 12px 0 24px; }
+  .car { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .car h3 { margin: 0; font-size: 16px; }
+  .car .variant { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .price { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+  .specs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .specs span { background: var(--bg); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); }
+  .more { display: block; margin: 0 auto 40px; height: 44px; }
+  .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  @media (max-width: 560px) { h1 { font-size: 21px; } form { flex-direction: column; } button[type=submit] { height: 46px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <div class="logo">CARS<span>24</span></div><small>Vehicle Search</small>
+    <a href="/docs">API docs</a>
+  </div>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <h1>Find a used car by describing it</h1>
+    <p class="sub">Type what you want the way you would say it. Budget, fuel, gearbox, seats, safety, brand, city.</p>
+    <form id="form">
+      <input id="q" type="search" placeholder="e.g. Diesel automatic cars below 80k km" autocomplete="off" autofocus>
+      <button type="submit">Search</button>
+    </form>
+    <div class="examples" id="examples"></div>
+  </section>
+  <section id="out"></section>
+</main>
+<script>
+const EXAMPLES = [
+  "Show SUVs under ₹15L",
+  "Diesel automatic cars below 80k km",
+  "Family cars with high safety ratings",
+  "Hyundai between 5 and 9 lakh after 2019 in Pune, cheapest",
+  "7 seater diesel under 20L",
+];
+const LABELS = {
+  body_types: "Body", fuel_types: "Fuel", transmission: "Gearbox", makes: "Make", min_price: "Min price",
+  max_price: "Max price", max_km: "Max km", min_year: "From year", min_seats: "Seats ≥", min_safety: "Safety ≥",
+  city: "City", sort: "Sort",
+};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const lakh = (n) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : `₹${(n / 1e5).toFixed(2)} L`;
+const km = (n) => `${n.toLocaleString("en-IN")} km`;
+
+function fmt(key, val) {
+  if (Array.isArray(val)) return val.join(", ");
+  if (key.endsWith("price")) return lakh(val);
+  if (key === "max_km") return km(val);
+  if (key === "min_safety") return `${val}★`;
+  return val;
+}
+
+function card(c) {
+  return `<div class="car">
+    <h3>${esc(c.year)} ${esc(c.make)} ${esc(c.model)}</h3>
+    <div class="variant">${esc(c.variant)} · ${esc(c.city)}</div>
+    <div class="price">${lakh(c.price)}</div>
+    <div class="specs">
+      <span>${esc(c.fuel_type)}</span><span>${esc(c.transmission)}</span><span>${km(c.km_driven)}</span>
+      <span>${esc(c.body_type)}</span><span>${c.seats} seats</span><span>${c.safety_rating}★ NCAP</span>
+      <span>${c.owners === 1 ? "1st" : c.owners === 2 ? "2nd" : c.owners + "rd"} owner</span>
+    </div>
+  </div>`;
+}
+
+let state = { q: "", cursor: null };
+
+async function run(q, cursor) {
+  const params = new URLSearchParams({ q, limit: 12 });
+  if (cursor) params.set("cursor", cursor);
+  const res = await fetch(`/search?${params}`);
+  const data = await res.json();
+  if (!res.ok) {
+    $("out").innerHTML = `<p class="empty">${esc(data.detail?.[0]?.msg || data.detail || "Something went wrong")}</p>`;
+    return;
+  }
+  state = { q, cursor: data.next_cursor };
+  const chips = Object.entries(data.filters).map(([k, v]) => `<span class="chip">${LABELS[k] || k}: ${esc(fmt(k, v))}</span>`).join("");
+  const more = data.next_cursor ? `<button class="more" id="more">Show more</button>` : "";
+  if (!cursor) {
+    $("out").innerHTML = `
+      <div class="meta">
+        <strong>${data.total.toLocaleString("en-IN")}${data.total_exact ? "" : "+"} cars</strong> · ${data.took_ms} ms ·
+        <span class="badge ${data.parser}">${data.parser === "llm" ? "AI parser" : "Rule parser"}</span>
+      </div>
+      <div class="chips">${chips || '<span class="chip">No filters understood</span>'}</div>
+      ${data.relaxed.length ? `<div class="notice">No exact match, so these filters were relaxed: ${data.relaxed.join(", ")}</div>` : ""}
+      <div class="grid" id="grid">${data.results.map(card).join("") || '<p class="empty">No cars found.</p>'}</div>
+      <div id="pager">${more}</div>`;
+  } else {
+    $("grid").insertAdjacentHTML("beforeend", data.results.map(card).join(""));
+    $("pager").innerHTML = more;
+  }
+  $("more")?.addEventListener("click", () => run(state.q, state.cursor));
+}
+
+function submit(q) {
+  q = q.trim();
+  if (q.length < 2) return;
+  $("q").value = q;
+  history.replaceState(null, "", `?q=${encodeURIComponent(q)}`);
+  run(q, null);
+}
+
+$("examples").innerHTML = EXAMPLES.map((e) => `<button type="button">${esc(e)}</button>`).join("");
+$("examples").addEventListener("click", (e) => { if (e.target.tagName === "BUTTON") submit(e.target.textContent); });
+$("form").addEventListener("submit", (e) => { e.preventDefault(); submit($("q").value); });
+const initial = new URLSearchParams(location.search).get("q");
+if (initial) submit(initial);
+</script>
+</body>
+</html>
