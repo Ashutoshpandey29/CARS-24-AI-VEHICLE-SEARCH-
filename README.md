@@ -6,7 +6,11 @@ Search a used-car catalogue in plain English. Built for the Cars24 Backend Engin
 "Diesel automatic cars below 80k km"  →  fuel: Diesel, gearbox: Automatic, max km: 80,000  →  54 cars
 ```
 
-![Search page](docs/images/ui-search.png)
+## Video walkthrough
+
+[![Video walkthrough: click to play](docs/images/video-thumbnail.png)](docs/media/walkthrough.mp4)
+
+*3-minute demo covering live search, how the parsers work and scalability. Click the image to play.*
 
 **Stack:** Python, FastAPI, SQLite, Claude API (optional), our own trained CRF model, Redis (optional).
 
